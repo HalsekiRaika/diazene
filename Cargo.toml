@@ -1,5 +1,6 @@
 [package]
 name = "nos"
+description = "Simple Actor for Rust (with Tokio)"
 version = "0.1.0"
 edition = "2021"
 authors = ["ReiRokusanami <reirokusanami.rdh@gmail.com>"]
