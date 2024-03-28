@@ -1,3 +1,5 @@
+#![allow(unused_variables, dead_code)]
+
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -121,6 +123,23 @@ impl<A: Actor, M: Message> Applier<A> for Callback<A, M> where A: Handler<M> {
     }
 }
 
+pub struct Void<A: Actor, M: Message>
+    where A: Handler<M> 
+{
+    message: M,
+    oneshot: oneshot::Sender<Result<(), A::Rejection>>
+}
+
+#[async_trait::async_trait]
+impl<A: Actor, M: Message> Applier<A> for Void<A, M> where A: Handler<M> {
+    async fn apply(self: Box<Self>, actor: &mut A) -> Result<(), ActorError> {
+        match actor.handle(self.message).await { 
+            Ok(_) => self.oneshot.send(Ok(())).map_err(|_| ActorError::CallbackSend),
+            Err(e) => self.oneshot.send(Err(e)).map_err(|_| ActorError::CallbackSend)
+        }
+    }
+}
+
 pub struct ActorRef<A: Actor> {
     sender: UnboundedSender<Box<dyn Applier<A>>>
 }
@@ -138,14 +157,27 @@ impl<A: Actor>ActorRef<A>
         
         Ok(res)
     }
+    
+    pub async fn tell<M: Message>(&self, msg: M) -> Result<Result<(), A::Rejection>, ActorError> where A: Handler<M> {
+        let (tx, rx)= oneshot::channel();
+        let Ok(_) = self.sender.send(Box::new(Void { message: msg, oneshot: tx })) else {
+            return Err(ActorError::CallbackSend)
+        };
+        let Ok(res) = rx.await else {
+            return Err(ActorError::CallbackSend)
+        };
+        
+        Ok(res)
+    }
 }
 
 pub async fn spawn_actor<A: Actor>(mut actor: A) -> ActorRef<A> {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Box<dyn Applier<A>>>();
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            println!("receive message");
-            msg.apply(&mut actor).await.unwrap()
+            if let Err(e) = msg.apply(&mut actor).await {
+                tracing::error!("{}", e);
+            } 
         }
     });
     
@@ -161,6 +193,10 @@ async fn main() -> anyhow::Result<()> {
     for _ in 0..5 {
         let ev = actor_ref.ask(UserCommand::Rental { book: Uuid::new_v4() }).await??;
         println!("{:?}", ev);
+    }
+    
+    for _ in 0..5 {
+        actor_ref.tell(UserCommand::Rental { book: Uuid::new_v4() }).await??;
     }
     
     tokio::time::sleep(Duration::new(3, 0)).await;
