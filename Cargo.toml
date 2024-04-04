@@ -10,13 +10,12 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 tokio = { version = "*", features = ["rt-multi-thread", "sync"] }
-uuid = { version = "1.7.0", features = ["v4"] }
 tracing = { version = "0.1", features = [] }
-anyhow = "1.0.81"
 async-trait = "0.1"
 thiserror = "1"
-
+dyn-hash = "0.2"
 
 [dev-dependencies]
+anyhow = "1.0.81"
 tokio = { version = "*", features = ["full"] }
 uuid = { version = "*", features = ["v4"] }

@@ -2,7 +2,7 @@
 pub enum ActorError {
     #[error("")]
     CallBackSend,
-    
-    #[error("")]
+
+    #[error("May have passed different type information than what was expected when downcasting from `Any` to type.")]
     DownCastFromAny,
 }
