@@ -7,6 +7,7 @@ use tokio::sync::Mutex;
 use crate::actor::{Actor, ActorRef, AnyRef, Applier};
 use crate::errors::ActorError;
 use crate::id::AnyId;
+use crate::Identifier;
 
 pub struct ActorSystem {
     inner: Arc<Mutex<InnerSystem>>,
@@ -26,15 +27,14 @@ impl ActorSystem {
         Ok(refs)
     }
 
-    pub async fn find<A: Actor>(&self, id: impl Into<AnyId>) -> Option<ActorRef<A>> {
+    pub async fn find<A: Actor>(&self, id: &impl Identifier) -> Option<ActorRef<A>> {
         self.inner.lock().await.find::<A>(id).await
     }
 
-    pub async fn find_or<A: Actor>(&self, id: impl Into<AnyId> + Copy) -> FindOr<A> {
-        let id = id.into();
+    pub async fn find_or<A: Actor>(&self, id: impl Identifier) -> FindOr<A> {
         FindOr {
-            id: id.clone(),
-            exact: self.find::<A>(id).await,
+            exact: self.find::<A>(&id).await,
+            id: AnyId::new(id),
             system: self.inner.clone(),
         }
     }
@@ -60,11 +60,10 @@ impl InnerSystem {
 
     // fixme: Do not use `Any` directly, but will replace this process with a Trait that derive from `Any`.
     //        this premise is that this issue <https://github.com/rust-lang/rust/issues/65991> needs to be resolved.
-    pub async fn find<A: Actor>(&self, id: impl Into<AnyId>) -> Option<ActorRef<A>> {
-        let id = id.into();
+    pub async fn find<A: Actor>(&self, id: &impl Identifier) -> Option<ActorRef<A>> {
         self.actors
             .iter()
-            .find(|(running, _)| (*running).eq(&id))
+            .find(|(running, _)| PartialEq::eq(running, &id))
             .map(|(_, refs)| refs.clone())
             .map(|refs| refs.downcast::<A>())
             .transpose()

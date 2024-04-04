@@ -7,20 +7,18 @@ use dyn_hash::DynHash;
 
 use crate::errors::ActorError;
 
-pub trait Identifier: Any + DynHash + Debug + Sync + Send + Display + 'static {
-    fn as_any(&self) -> &dyn Any;
-
-    fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Sync + Send>;
-
-    fn eq(&self, other: &dyn Identifier) -> bool;
-}
-
-dyn_hash::hash_trait_object!(Identifier);
-
+/// An identifier that can be handled with some disregard for type information
+/// by storing the type that meets the requirements as an identifier.
+/// 
+/// See [Identifier]
 #[derive(Debug)]
 pub struct AnyId(Arc<dyn Identifier>);
 
 impl AnyId {
+    pub fn new(id: impl Identifier) -> Self {
+        Self(Arc::new(id))
+    }
+    
     pub fn downcast_ref<T: Identifier>(&self) -> Result<&T, ActorError> {
         self.0
             .as_any()
@@ -37,6 +35,30 @@ impl AnyId {
         Ok(*id)
     }
 }
+
+/// Marker Trait, which is a collection of very often used items in using as identifiers.
+/// 
+/// ### Require bounds
+/// * [`Copy`] Trait is implemented.
+///   * Because most of the time, keys are used in K/V arrays.
+/// * [`PartialEq`]/[`Eq`] Trait is implemented.
+/// * [`Display`]/[`Debug`] is implemented.
+///   * Because keys are sometimes displayed in logging.
+/// * [`Sync`]/[`Send`] is implemented.
+/// * [`Hash`] is implemented.
+///   * Because true comparison performed.
+///
+/// In addition, you will probably never use this Trait directly, 
+/// as it is automatically implemented in the default implementation if the conditions are met.
+pub trait Identifier: Any + DynHash + Debug + Sync + Send + Display + 'static {
+    fn as_any(&self) -> &dyn Any;
+    
+    fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Sync + Send>;
+    
+    fn eq(&self, other: &dyn Identifier) -> bool;
+}
+
+dyn_hash::hash_trait_object!(Identifier);
 
 impl<T> Identifier for T
 where

@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -204,23 +205,25 @@ impl<A: Actor> ActorRef<A> {
     }
 }
 
-pub async fn spawn_actor<A: Actor>(mut actor: A) -> ActorRef<A> {
+pub async fn spawn_actor<A: Actor>(mut actor: A) -> (JoinHandle<()>, ActorRef<A>) {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Box<dyn Applier<A>>>();
-    tokio::spawn(async move {
+    let task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             if let Err(e) = msg.apply(&mut actor).await {
                 tracing::error!("{}", e);
             }
         }
+        
+        println!("actor terminated");
     });
-
-    ActorRef { sender: tx }
+    
+    (task, ActorRef { sender: tx })
 }
 
 #[tokio::test]
 async fn main() -> anyhow::Result<()> {
     let user = User::default();
-    let actor_ref = spawn_actor(user).await;
+    let (task, actor_ref) = spawn_actor(user).await;
 
     for _ in 0..5 {
         let ev = actor_ref
@@ -238,7 +241,11 @@ async fn main() -> anyhow::Result<()> {
             })
             .await??;
     }
-
-    tokio::time::sleep(Duration::new(3, 0)).await;
+    
+    drop(actor_ref);
+    
+    tokio::time::sleep(Duration::new(5, 0)).await;
+    
+    println!("abort: {}", task.is_finished());
     Ok(())
 }

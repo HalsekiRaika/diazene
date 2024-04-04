@@ -78,10 +78,7 @@ impl<A: Actor> ActorRef<A> {
         A: Handler<M>,
         A::Rejection: From<ActorError>,
     {
-        match self.ask(msg).await {
-            Ok(o) => o,
-            Err(e) => Err(e.into()),
-        }
+        self.ask(msg).await.unwrap_or_else(|e| Err(e.into()))
     }
 
     pub async fn tell_flat<M: Message>(&self, msg: M) -> Result<(), A::Rejection>
@@ -89,10 +86,7 @@ impl<A: Actor> ActorRef<A> {
         A: Handler<M>,
         A::Rejection: From<ActorError>,
     {
-        match self.tell(msg).await {
-            Ok(o) => o,
-            Err(e) => Err(e.into()),
-        }
+        self.tell(msg).await.unwrap_or_else(|e| Err(e.into()))
     }
 }
 

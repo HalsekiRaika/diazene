@@ -81,7 +81,7 @@ async fn test() -> anyhow::Result<()> {
     let user = User::default();
     let id = user.id;
     system.spawn(id, user).await?;
-    let actor = system.find::<User>(id).await.unwrap();
+    let actor = system.find::<User>(&id).await.unwrap();
     let res = actor
         .ask(UserCommand::Rental {
             book: Uuid::new_v4(),

@@ -81,19 +81,6 @@ async fn test() -> anyhow::Result<()> {
     let user = User::default();
     let id = user.id;
 
-    let actor = system.find_or::<User>(id).await.spawn(|| user).await?;
-
-    let res = actor
-        .ask(UserCommand::Rental {
-            book: Uuid::new_v4(),
-        })
-        .await??;
-
-    println!("{:?}", res);
-
-    let user = User::default();
-    let id = user.id;
-
     let actor = system
         .find_or::<User>(id)
         .await
