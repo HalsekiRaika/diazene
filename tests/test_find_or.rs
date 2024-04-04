@@ -1,9 +1,11 @@
 #![allow(dead_code)]
 
 use nos::actor::{Actor, Handler, Message};
+use nos::system::ActorSystem;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -75,6 +77,38 @@ impl Handler<UserCommand> for User {
 
 #[tokio::test]
 async fn test() -> anyhow::Result<()> {
-    // compile only
+    let system = ActorSystem::default();
+    let user = User::default();
+    let id = user.id;
+
+    let actor = system.find_or::<User>(id).await.spawn(|| user).await?;
+
+    let res = actor
+        .ask(UserCommand::Rental {
+            book: Uuid::new_v4(),
+        })
+        .await??;
+
+    println!("{:?}", res);
+
+    let user = User::default();
+    let id = user.id;
+
+    let actor = system
+        .find_or::<User>(id)
+        .await
+        .spawn_async(|| async { user })
+        .await?;
+
+    let res = actor
+        .ask(UserCommand::Rental {
+            book: Uuid::new_v4(),
+        })
+        .await??;
+
+    println!("{:?}", res);
+
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
     Ok(())
 }

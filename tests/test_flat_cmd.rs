@@ -1,9 +1,12 @@
 #![allow(dead_code)]
 
 use nos::actor::{Actor, Handler, Message};
+use nos::errors::ActorError;
+use nos::system::ActorSystem;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -33,6 +36,13 @@ impl Default for User {
 #[derive(Debug)]
 pub enum KernelError {
     InvalidValue,
+    ActorError(ActorError),
+}
+
+impl From<ActorError> for KernelError {
+    fn from(value: ActorError) -> Self {
+        Self::ActorError(value)
+    }
 }
 
 impl Display for KernelError {
@@ -75,6 +85,20 @@ impl Handler<UserCommand> for User {
 
 #[tokio::test]
 async fn test() -> anyhow::Result<()> {
-    // compile only
+    let system = ActorSystem::default();
+    let user = User::default();
+    let id = user.id;
+
+    let actor = system.spawn(id, user).await?;
+
+    let res = actor
+        .ask_flat(UserCommand::Rental {
+            book: Uuid::new_v4(),
+        })
+        .await?;
+
+    println!("{:?}", res);
+
+    tokio::time::sleep(Duration::from_secs(3)).await;
     Ok(())
 }

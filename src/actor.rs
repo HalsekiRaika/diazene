@@ -1,12 +1,7 @@
-mod refs;
 mod handler;
 mod message;
+mod refs;
 
-pub use self::{
-    refs::*,
-    handler::*,
-    message::*
-};
+pub use self::{handler::*, message::*, refs::*};
 
-pub trait Actor: 'static + Sync + Send {
-}
+pub trait Actor: 'static + Sync + Send {}

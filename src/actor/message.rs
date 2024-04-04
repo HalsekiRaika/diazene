@@ -1,3 +1,1 @@
-pub trait Message: 'static + Sync + Send {
-    
-}
+pub trait Message: 'static + Sync + Send {}
