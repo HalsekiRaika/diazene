@@ -1,5 +1,12 @@
+use crate::AnyId;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ActorError {
+    #[error("Actor with this identifier: {id} has already been activated.")]
+    AlreadySpawned {
+        id: AnyId
+    },
+    
     #[error("")]
     CallBackSend,
 

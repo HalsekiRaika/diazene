@@ -23,7 +23,7 @@ impl ActorSystem {
         id: impl Into<AnyId>,
         actor: A,
     ) -> Result<ActorRef<A>, ActorError> {
-        let refs = self.inner.lock().await.spawn(id.into(), actor).await;
+        let refs = self.inner.lock().await.spawn(id.into(), actor).await?;
         Ok(refs)
     }
 
@@ -34,15 +34,23 @@ impl ActorSystem {
     pub async fn find_or<A: Actor>(&self, id: impl Identifier, fut: impl IntoFuture<Output=A>) -> Result<ActorRef<A>, ActorError> {
         let mut lock = self.inner.lock().await;
         match lock.find::<A>(&id).await {
-            None => Ok(lock.spawn(id, fut.await).await),
+            None => Ok(lock.spawn(id, fut.await).await?),
             Some(a) => Ok(a),
         }
     }
 }
 
 impl InnerSystem {
-    pub async fn spawn<A: Actor>(&mut self, id: impl Into<AnyId>, mut actor: A) -> ActorRef<A> {
+    pub async fn spawn<A: Actor>(&mut self, id: impl Into<AnyId>, mut actor: A) -> Result<ActorRef<A>, ActorError> {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Box<dyn Applier<A>>>();
+        
+        let refs = ActorRef::new(tx);
+        let id = id.into();
+        
+        if self.actors.insert(id.clone(), refs.clone().into()).is_some() {
+            return Err(ActorError::AlreadySpawned { id })
+        }
+        
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 if let Err(e) = msg.apply(&mut actor).await {
@@ -50,12 +58,8 @@ impl InnerSystem {
                 }
             }
         });
-
-        let refs = ActorRef::new(tx);
-
-        self.actors.insert(id.into(), refs.clone().into());
-
-        refs
+        
+        Ok(refs)
     }
 
     // fixme: Do not use `Any` directly, but will replace this process with a Trait that derive from `Any`.
