@@ -82,9 +82,7 @@ async fn test() -> anyhow::Result<()> {
     let id = user.id;
 
     let actor = system
-        .find_or::<User>(id)
-        .await
-        .spawn_async(|| async { user })
+        .find_or::<User>(id, async { user })
         .await?;
 
     let res = actor

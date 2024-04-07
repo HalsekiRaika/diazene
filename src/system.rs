@@ -31,11 +31,11 @@ impl ActorSystem {
         self.inner.lock().await.find::<A>(id).await
     }
 
-    pub async fn find_or<A: Actor>(&self, id: impl Identifier) -> FindOr<A> {
-        FindOr {
-            exact: self.find::<A>(&id).await,
-            id: AnyId::new(id),
-            system: self.inner.clone(),
+    pub async fn find_or<A: Actor>(&self, id: impl Identifier, fut: impl IntoFuture<Output=A>) -> Result<ActorRef<A>, ActorError> {
+        let mut lock = self.inner.lock().await;
+        match lock.find::<A>(&id).await {
+            None => Ok(lock.spawn(id, fut.await).await),
+            Some(a) => Ok(a),
         }
     }
 }
@@ -69,31 +69,6 @@ impl InnerSystem {
             .transpose()
             .ok()
             .flatten()
-    }
-}
-
-pub struct FindOr<A: Actor> {
-    id: AnyId,
-    exact: Option<ActorRef<A>>,
-    system: Arc<Mutex<InnerSystem>>,
-}
-
-impl<A: Actor> FindOr<A> {
-    pub async fn spawn(self, f: impl FnOnce() -> A) -> Result<ActorRef<A>, ActorError> {
-        match self.exact {
-            None => Ok(self.system.lock().await.spawn(self.id, f()).await),
-            Some(a) => Ok(a),
-        }
-    }
-
-    pub async fn spawn_async<Fut: IntoFuture<Output = A>>(
-        self,
-        fut: impl FnOnce() -> Fut,
-    ) -> Result<ActorRef<A>, ActorError> {
-        match self.exact {
-            None => Ok(self.system.lock().await.spawn(self.id, fut().await).await),
-            Some(a) => Ok(a),
-        }
     }
 }
 
