@@ -80,6 +80,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "diazene"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "dyn-hash",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "dyn-hash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -148,19 +161,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "nos"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "dyn-hash",
- "thiserror",
- "tokio",
- "tracing",
- "uuid",
 ]
 
 [[package]]

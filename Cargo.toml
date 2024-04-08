@@ -1,5 +1,5 @@
 [package]
-name = "nos"
+name = "diazene"
 description = "Simple Actor for Rust (with Tokio)"
 version = "0.2.0"
 edition = "2021"

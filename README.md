@@ -1,1 +1,1 @@
-### nos (Akka inspired tokio based Actor library)
+### diazene (Akka inspired tokio based Actor library)
