@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use nos::actor::{Actor, Handler, Message};
-use nos::system::ActorSystem;
+use diazene::actor::{Actor, Handler, Message};
+use diazene::system::ActorSystem;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -91,7 +91,7 @@ async fn test() -> anyhow::Result<()> {
 
     let user_b = User::default();
     let id = user_b.id;
-    let actor = nos::spawn(id, user_b, &system).await?;
+    let actor = diazene::spawn(id, user_b, &system).await?;
     actor
         .tell(UserCommand::Rental {
             book: Uuid::new_v4(),

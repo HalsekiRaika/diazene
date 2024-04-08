@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use nos::actor::{Actor, Handler, Message};
-use nos::system::ActorSystem;
+use diazene::actor::{Actor, Handler, Message};
+use diazene::system::ActorSystem;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
