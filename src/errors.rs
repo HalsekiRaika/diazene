@@ -1,4 +1,4 @@
-use crate::AnyId;
+use anyid::AnyId;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ActorError {
@@ -6,7 +6,7 @@ pub enum ActorError {
     AlreadySpawned {
         id: AnyId
     },
-    
+
     #[error("")]
     CallBackSend,
 

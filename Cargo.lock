@@ -24,6 +24,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0952808a6c2afd1aa8947271f3a60f1a6763c7b912d210184c5149b5cf147247"
 
 [[package]]
+name = "anyid"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "799f131c615d1a3ea6c281e2414c22380ed6372e3aa41034098b14625a16068a"
+dependencies = [
+ "dyn-hash",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -81,9 +90,10 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "diazene"
-version = "0.2.1"
+version = "0.3.1"
 dependencies = [
  "anyhow",
+ "anyid",
  "async-trait",
  "dyn-hash",
  "thiserror",

@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 use std::future::IntoFuture;
 use std::sync::Arc;
+use anyid::{AnyId, Identifier};
 
 use tokio::sync::Mutex;
 
 use crate::actor::{Actor, ActorRef, AnyRef, Applier};
 use crate::errors::ActorError;
-use crate::id::AnyId;
-use crate::Identifier;
 
 pub struct ActorSystem {
     inner: Arc<Mutex<InnerSystem>>,
