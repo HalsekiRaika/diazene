@@ -6,6 +6,11 @@ pub enum ActorError {
     AlreadySpawned {
         id: AnyId
     },
+    
+    #[error("The target actor could not be found. actor: `{id}` It may have already been shut down or may not have started.")]
+    NotFoundActor {
+        id: AnyId
+    },
 
     #[error("")]
     CallBackSend,
