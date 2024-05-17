@@ -1,6 +1,7 @@
 [package]
 name = "diazene"
 description = "Simple Actor for Rust (with Tokio)"
+repository = "https://github.com/HalsekiRaika/diazene"
 version = "0.4.1"
 edition = "2021"
 authors = ["ReiRokusanami <reirokusanami.rdh@gmail.com>"]
