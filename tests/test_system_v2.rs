@@ -135,7 +135,7 @@ async fn test() -> anyhow::Result<()> {
         tracing::debug!("{:?}", res);
     }
 
-    system.shutdown(id).await?;
+    system.shutdown(&id).await?;
 
     tokio::time::sleep(Duration::from_secs(3)).await;
     
