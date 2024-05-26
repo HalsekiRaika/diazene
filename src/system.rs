@@ -1,8 +1,6 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use crate::actor::Actor;
-
 pub use self::supervisor::*;
 
 mod supervisor;
