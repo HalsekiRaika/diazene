@@ -4,11 +4,12 @@ use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 
-use crate::actor::{Actor, Handler, Message};
+use crate::actor::{Actor, Context, ErrorFlattenBehavior, Handler, Message};
+use crate::actor::behavior::RegularBehavior;
 use crate::errors::ActorError;
 
 pub struct ActorRef<A: Actor> {
-    ctx: Arc<RefContext<A>>,
+    pub(crate) ctx: Arc<RefContext<A>>,
 }
 
 impl<A: Actor> Clone for ActorRef<A> {
@@ -20,7 +21,7 @@ impl<A: Actor> Clone for ActorRef<A> {
 }
 
 pub(crate) struct RefContext<A> {
-    sender: UnboundedSender<Box<dyn Applier<A>>>,
+    pub(crate) sender: UnboundedSender<Box<dyn Applier<A>>>,
 }
 
 impl<A: Actor> ActorRef<A> {
@@ -31,13 +32,13 @@ impl<A: Actor> ActorRef<A> {
     }
 }
 
-impl<A: Actor> ActorRef<A> {
-    pub async fn ask<M: Message>(
+impl<A: Actor> RegularBehavior<A> for ActorRef<A> {
+    async fn ask<M: Message>(
         &self,
         msg: M,
     ) -> Result<Result<A::Accept, A::Rejection>, ActorError>
-    where
-        A: Handler<M>,
+        where
+            A: Handler<M>,
     {
         let (tx, rx) = oneshot::channel();
         let Ok(_) = self.ctx.sender.send(Box::new(Callback {
@@ -53,9 +54,9 @@ impl<A: Actor> ActorRef<A> {
         Ok(res)
     }
 
-    pub async fn tell<M: Message>(&self, msg: M) -> Result<Result<(), A::Rejection>, ActorError>
-    where
-        A: Handler<M>,
+    async fn tell<M: Message>(&self, msg: M) -> Result<Result<(), A::Rejection>, ActorError>
+        where
+            A: Handler<M>,
     {
         let (tx, rx) = oneshot::channel();
         let Ok(_) = self.ctx.sender.send(Box::new(Void {
@@ -72,35 +73,35 @@ impl<A: Actor> ActorRef<A> {
     }
 }
 
-impl<A: Actor> ActorRef<A> {
-    pub async fn ask_flat<M: Message>(&self, msg: M) -> Result<A::Accept, A::Rejection>
-    where
-        A: Handler<M>,
-        A::Rejection: From<ActorError>,
+impl<A: Actor> ErrorFlattenBehavior<A> for ActorRef<A> {
+    async fn ask<M: Message>(&self, msg: M) -> Result<A::Accept, A::Rejection>
+        where
+            A: Handler<M>,
+            A::Rejection: From<ActorError>,
     {
-        self.ask(msg).await.unwrap_or_else(|e| Err(e.into()))
+        RegularBehavior::ask(self, msg).await.unwrap_or_else(|e| Err(e.into()))
     }
 
-    pub async fn tell_flat<M: Message>(&self, msg: M) -> Result<(), A::Rejection>
-    where
-        A: Handler<M>,
-        A::Rejection: From<ActorError>,
+    async fn tell<M: Message>(&self, msg: M) -> Result<(), A::Rejection>
+        where
+            A: Handler<M>,
+            A::Rejection: From<ActorError>,
     {
-        self.tell(msg).await.unwrap_or_else(|e| Err(e.into()))
+        RegularBehavior::tell(self, msg).await.unwrap_or_else(|e| Err(e.into()))
     }
 }
 
 #[async_trait::async_trait]
 pub(crate) trait Applier<A: Actor>: 'static + Sync + Send {
-    async fn apply(self: Box<Self>, actor: &mut A) -> Result<(), ActorError>;
+    async fn apply(self: Box<Self>, actor: &mut A, ctx: &mut Context) -> Result<(), ActorError>;
 }
 
 pub(crate) struct Callback<A: Actor, M: Message>
 where
     A: Handler<M>,
 {
-    message: M,
-    oneshot: oneshot::Sender<Result<A::Accept, A::Rejection>>,
+    pub(crate) message: M,
+    pub(crate) oneshot: oneshot::Sender<Result<A::Accept, A::Rejection>>,
 }
 
 #[async_trait::async_trait]
@@ -108,10 +109,10 @@ impl<A: Actor, M: Message> Applier<A> for Callback<A, M>
 where
     A: Handler<M>,
 {
-    async fn apply(self: Box<Self>, actor: &mut A) -> Result<(), ActorError> {
+    async fn apply(self: Box<Self>, actor: &mut A, ctx: &mut Context) -> Result<(), ActorError> {
         Ok(self
             .oneshot
-            .send(actor.handle(self.message).await)
+            .send(actor.handle(self.message, ctx).await)
             .map_err(|_| ActorError::CallBackSend)?)
     }
 }
@@ -120,8 +121,8 @@ pub(crate) struct Void<A: Actor, M: Message>
 where
     A: Handler<M>,
 {
-    message: M,
-    oneshot: oneshot::Sender<Result<(), A::Rejection>>,
+    pub(crate) message: M,
+    pub(crate) oneshot: oneshot::Sender<Result<(), A::Rejection>>,
 }
 
 #[async_trait::async_trait]
@@ -129,8 +130,8 @@ impl<A: Actor, M: Message> Applier<A> for Void<A, M>
 where
     A: Handler<M>,
 {
-    async fn apply(self: Box<Self>, actor: &mut A) -> Result<(), ActorError> {
-        match actor.handle(self.message).await {
+    async fn apply(self: Box<Self>, actor: &mut A, ctx: &mut Context) -> Result<(), ActorError> {
+        match actor.handle(self.message, ctx).await {
             Ok(_) => self
                 .oneshot
                 .send(Ok(()))

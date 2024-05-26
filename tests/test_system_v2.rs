@@ -9,14 +9,14 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 use uuid::Uuid;
 
-use diazene::actor::{Actor, Handler, Message};
+use diazene::actor::{Actor, Context, Handler, Message, Terminate};
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct PersonId(Uuid);
 
 impl Display for PersonId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "person=[{}]", self.0)
+        write!(f, "Person({})", self.0)
     }
 }
 
@@ -36,7 +36,8 @@ pub struct Book {
 #[derive(Debug, Clone)]
 pub enum BookCommand {
     Rental { id: PersonId },
-    Return { id: PersonId }
+    Return { id: PersonId },
+    Archive,
 }
 
 #[derive(Debug, Clone)]
@@ -60,6 +61,7 @@ impl std::error::Error for Error {}
 pub enum BookEvent {
     Rental { id: PersonId },
     Returned { id: PersonId },
+    Archived,
 }
 
 impl Message for BookCommand {}
@@ -70,8 +72,7 @@ impl Handler<BookCommand> for Book {
     type Accept = BookEvent;
     type Rejection = Error;
     
-    #[tracing::instrument(skip(self, msg), fields(self.id = %self.id))]
-    async fn handle(&mut self, msg: BookCommand) -> Result<Self::Accept, Self::Rejection> {
+    async fn handle(&mut self, msg: BookCommand, ctx: &mut Context) -> Result<Self::Accept, Self::Rejection> {
         match msg {
             BookCommand::Rental { id } => {
                 if !self.rental.insert(id) {
@@ -79,6 +80,7 @@ impl Handler<BookCommand> for Book {
                         reason: format!("The book is already on loan by {}.", id)
                     })
                 }
+                tracing::debug!("rental={}", id);
                 Ok(BookEvent::Rental { id })
             }
             BookCommand::Return { id } => {
@@ -87,8 +89,14 @@ impl Handler<BookCommand> for Book {
                         reason: format!("This book is not on loan from {}.", id)
                     })
                 }
+                tracing::debug!("return={}", id);
                 Ok(BookEvent::Returned { id })
-            }
+            },
+            BookCommand::Archive => {
+                tracing::info!("book archived. (self shutdown)");
+                ctx.shutdown();
+                Ok(BookEvent::Archived)
+            },
         }
     }
 }
@@ -101,14 +109,10 @@ async fn test() -> anyhow::Result<()> {
                   .with_filter(tracing_subscriber::filter::LevelFilter::TRACE),
         )
         .init();
-    let system = diazene::system_v2::ActorSystem::new();
-    let id = Uuid::new_v4();
-    let book = Book {
-        id,
-        title: "Charlie and the Chocolate Factory".to_string(),
-        rental: Default::default(),
-    };
+    let system = diazene::system::ActorSystem::new();
 
+    let (id, book) = create_book();
+    
     let book_ref = system.spawn(id, book).await?;
 
     tracing::debug!("=-=-=- Success -=-=-=");
@@ -135,11 +139,39 @@ async fn test() -> anyhow::Result<()> {
         tracing::debug!("{:?}", res);
     }
 
-    system.shutdown(&id).await?;
+    tracing::debug!("=-=-=- Shutdown -=-=-=");
+    
+    system.shutdown(id).await?;
 
     tokio::time::sleep(Duration::from_secs(3)).await;
     
     tokio::task::spawn_blocking(|| { drop(book_ref) }).await?;
     
+    let (id, book) = create_book();
+    
+    let book_ref = system.spawn(id, book).await?;
+    
+    let ev = book_ref.ask(BookCommand::Archive).await?;
+    
+    tracing::debug!("{:?}", ev);
+
+    let (id, book) = create_book();
+
+    let book_ref = system.spawn(id, book).await?;
+
+    book_ref.tell(Terminate).await??;
+    
+    
     Ok(())
+}
+
+fn create_book() -> (Uuid, Book) {
+    let id = Uuid::new_v4();
+    let book = Book {
+        id,
+        title: "Charlie and the Chocolate Factory".to_string(),
+        rental: Default::default(),
+    };
+    
+    (id, book)
 }

@@ -1,99 +1,157 @@
-#![allow(dead_code)]
+#![allow(unused)]
 
-use diazene::actor::{Actor, Handler, Message};
-use diazene::system::ActorSystem;
 use std::collections::HashSet;
-use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::time::Duration;
+use tracing_subscriber::Layer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use uuid::Uuid;
+use diazene::actor::{Actor, ActorRef, Context, Handler, Message, RegularBehavior};
+use diazene::system::ActorSystem;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub struct PersonId(Uuid);
+
+impl Display for PersonId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Person({})", self.0)
+    }
+}
+
+impl Default for PersonId {
+    fn default() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Book {
     id: Uuid,
     title: String,
-    stock: u32,
+    rental: HashSet<PersonId>
 }
 
-#[derive(Debug)]
-pub struct User {
-    id: Uuid,
-    name: String,
-    rental: HashSet<Uuid>,
+#[derive(Debug, Clone)]
+pub enum BookCommand {
+    Rental { id: PersonId },
+    Return { id: PersonId },
+    Archive,
 }
 
-impl Default for User {
-    fn default() -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            name: String::new(),
-            rental: HashSet::new(),
+#[derive(Debug, Clone)]
+pub enum Error {
+    AlreadyExist { reason: String },
+    NotFound { reason: String }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::AlreadyExist { reason } => write!(f, "{}", reason),
+            Error::NotFound { reason } => write!(f, "{}", reason),
         }
     }
 }
 
-#[derive(Debug)]
-pub enum KernelError {
-    InvalidValue,
+impl std::error::Error for Error {}
+
+#[derive(Debug, Clone)]
+pub enum BookEvent {
+    Rental { id: PersonId },
+    Returned { id: PersonId },
+    Archived,
 }
 
-impl Display for KernelError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "KernelError")
-    }
-}
-
-impl Error for KernelError {}
-
-pub enum UserCommand {
-    Rental { book: Uuid },
-}
-
-#[derive(Debug)]
-pub enum UserEvent {
-    Rental { book: Uuid },
-}
+impl Message for BookCommand {}
 
 impl Actor for Book {}
 
-impl Actor for User {}
+impl Handler<BookCommand> for Book {
+    type Accept = BookEvent;
+    type Rejection = Error;
 
-impl Message for UserCommand {}
-
-impl Handler<UserCommand> for User {
-    type Accept = UserEvent;
-    type Rejection = KernelError;
-
-    async fn handle(&mut self, msg: UserCommand) -> Result<Self::Accept, Self::Rejection> {
+    #[tracing::instrument(skip_all, name = "book-cmd-handler")]
+    async fn handle(&mut self, msg: BookCommand, ctx: &mut Context) -> Result<Self::Accept, Self::Rejection> {
         match msg {
-            UserCommand::Rental { book } => {
-                self.rental.insert(book);
-                println!("{:?}", self);
-                Ok(UserEvent::Rental { book })
+            BookCommand::Rental { id } => {
+                if !self.rental.insert(id) {
+                    return Err(Error::AlreadyExist {
+                        reason: format!("The book is already on loan by {}.", id)
+                    })
+                }
+                tracing::debug!("rental={}", id);
+                Ok(BookEvent::Rental { id })
             }
+            BookCommand::Return { id } => {
+                if !self.rental.remove(&id) {
+                    return Err(Error::NotFound {
+                        reason: format!("This book is not on loan from {}.", id)
+                    })
+                }
+                tracing::debug!("return={}", id);
+                Ok(BookEvent::Returned { id })
+            },
+            BookCommand::Archive => {
+                tracing::info!("book archived. (self shutdown)");
+                ctx.shutdown();
+                Ok(BookEvent::Archived)
+            },
         }
     }
 }
 
+
+fn create_book() -> (Uuid, Book) {
+    let id = Uuid::new_v4();
+    let book = Book {
+        id,
+        title: "Charlie and the Chocolate Factory".to_string(),
+        rental: Default::default(),
+    };
+
+    (id, book)
+}
+
+async fn find_or(system: &ActorSystem) -> anyhow::Result<()> {
+    let (id, book) = create_book();
+    
+    let _ = system.spawn(id, book).await?;
+    
+    let refs: ActorRef<Book> = system.find_or(id, |_id| async {
+        unreachable!()
+    }).await?;
+    
+    refs.tell(BookCommand::Archive).await??;
+    
+    let id = Uuid::new_v4();
+
+    let refs = system.find_or(id, |id| async move {
+        Book {
+            id,
+            title: "The Book of Rust :ferris:".to_string(),
+            rental: Default::default(),
+        }
+    }).await?;
+    
+    let ev1 = refs.ask(BookCommand::Rental { id: PersonId::default() }).await??;
+    let ev2 = refs.ask(BookCommand::Archive).await??;
+    
+    tracing::debug!("{:?}", ev1);
+    tracing::debug!("{:?}", ev2);
+    
+    Ok(())
+}
+
 #[tokio::test]
-async fn test() -> anyhow::Result<()> {
-    let system = ActorSystem::default();
-    let user = User::default();
-    let id = user.id;
-
-    let actor = system
-        .find_or::<User>(id, async { user })
-        .await?;
-
-    let res = actor
-        .ask(UserCommand::Rental {
-            book: Uuid::new_v4(),
-        })
-        .await??;
-
-    println!("{:?}", res);
-
-    tokio::time::sleep(Duration::from_secs(3)).await;
-
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer()
+                  .with_filter(tracing_subscriber::EnvFilter::new("test=trace,diazene=trace"))
+                  .with_filter(tracing_subscriber::filter::LevelFilter::TRACE),
+        )
+        .init();
+    
+    let system = ActorSystem::new();
+    find_or(&system).await?;
     Ok(())
 }

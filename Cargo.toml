@@ -2,7 +2,7 @@
 name = "diazene"
 description = "Simple Actor for Rust (with Tokio)"
 repository = "https://github.com/HalsekiRaika/diazene"
-version = "0.4.1"
+version = "1.4.1"
 edition = "2021"
 authors = ["ReiRokusanami <reirokusanami.rdh@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-system-v2 = []
+unstable = []
 persistence = ["serde"]
 
 [dependencies]
@@ -26,5 +26,7 @@ serde = { version = "^1", optional = true }
 [dev-dependencies]
 anyhow = "1.0.81"
 tokio = { version = "^1", features = ["full"] }
-uuid = { version = "^1.8", features = ["v4"] }
+uuid = { version = "^1.8", features = ["v4", "v7", "serde"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "^1", features = ["derive"] }
+serde_json = "^1"
