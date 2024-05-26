@@ -8,7 +8,6 @@ mod behavior;
 
 pub use self::{
     behavior::*,
-    refs::*,
     journal::*,
     error::*,
 };
