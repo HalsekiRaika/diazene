@@ -17,4 +17,8 @@ pub enum ActorError {
 
     #[error("May have passed different type information than what was expected when downcasting from `Any` to type.")]
     DownCastFromAny,
+    
+    #[cfg(feature = "persistence")]
+    #[error(transparent)]
+    Persist(crate::persistence::PersistError),
 }

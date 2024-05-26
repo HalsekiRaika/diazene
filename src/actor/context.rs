@@ -2,9 +2,11 @@ use crate::actor::{RunningState, State};
 use crate::system::SupervisorRef;
 
 pub struct Context {
-    supervisor: SupervisorRef
     running: RunningState,
     supervisor: SupervisorRef,
+    
+    #[cfg(feature = "persistence")]
+    persistence: crate::persistence::Journal
 }
 
 impl Context {
@@ -13,6 +15,8 @@ impl Context {
             running: RunningState::default(), 
             supervisor,
             
+            #[cfg(feature = "persistence")]
+            persistence: crate::persistence::Journal::new()
         }
     }
 }
@@ -32,4 +36,13 @@ impl Context {
         &self.running
     }
     
+    #[cfg(feature = "persistence")]
+    pub fn persistence(&self) -> &crate::persistence::Journal {
+        &self.persistence
+    }
+
+    #[cfg(feature = "persistence")]
+    pub fn persistence_mut(&mut self) -> &mut crate::persistence::Journal {
+        &mut self.persistence
+    }
 }
