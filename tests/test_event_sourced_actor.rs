@@ -9,7 +9,9 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 use uuid::{NoContext, Timestamp, Uuid};
 use diazene::actor::{Context, Handler, Message};
-use diazene::persistence::event::{Event, EventSourcedActor, Replay};
+use diazene::errors::ActorError;
+use diazene::persistence::PersistentActor;
+use diazene::persistence::event::{Event, EventSourced, Replay};
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Deserialize, Serialize)]
 pub struct PersonId(Uuid);
@@ -83,7 +85,14 @@ impl Event for BookEvent {
 impl Message for BookCommand {}
 
 #[async_trait::async_trait]
-impl EventSourcedActor for Book {
+impl PersistentActor for Book {
+    async fn persist<M: Message>(&self, _msg: M, _ctx: &Context) -> Result<(), ActorError> {
+        todo!()
+    }
+}
+
+#[async_trait::async_trait]
+impl EventSourced for Book {
     async fn activate(&mut self, _ctx: &mut Context) {
     }
 }
@@ -164,7 +173,7 @@ async fn test_replay() {
         .init();
     
     let events = create_events().await;
-    events.iter().for_each(|(id, event)| tracing::debug!("id: {}, event: {}", id, serde_json::to_string(event).unwrap()));
+    events.iter().for_each(|(id, event)| tracing::debug!("id: {:>4}, event: {}", id, serde_json::to_string(event).unwrap()));
     
     let (_, mut book) = create_book();
     

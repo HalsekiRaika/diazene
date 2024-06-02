@@ -1,21 +1,27 @@
 #[cfg(not(all(feature = "unstable", feature = "persistence")))]
 compile_error!("This feature requires the unstable feature to be enabled.");
 
+mod actor;
 mod journal;
 mod error;
 
 mod provider;
 
-#[cfg(not(feature = "event"))]
-mod actor;
+mod snapshot;
 
 #[cfg(feature = "event")]
 pub mod event;
 
 pub use self::{
+    actor::*,
     error::*,
     journal::*,
+    snapshot::*,
 };
 
-#[cfg(not(feature = "event"))]
-pub use self::actor::*;
+pub mod providers {
+    pub use self::{
+        super::provider::*,
+        super::event::provider::*
+    };
+}

@@ -6,10 +6,9 @@ compile_error!("To use this feature, `persistence` and `unstable` features must 
 
 mod refs;
 pub mod behavior;
-mod provider;
+pub mod provider;
 mod actor;
 
 pub use self::{
-    provider::*,
     actor::*,
 };

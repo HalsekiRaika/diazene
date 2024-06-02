@@ -1,4 +1,5 @@
 use crate::actor::{RunningState, State};
+use crate::persistence::SnapshotModule;
 use crate::system::SupervisorRef;
 
 pub struct Context {
@@ -6,7 +7,10 @@ pub struct Context {
     supervisor: SupervisorRef,
     
     #[cfg(feature = "persistence")]
-    persistence: crate::persistence::Journal
+    persistence: crate::persistence::Journal,
+    
+    #[cfg(feature = "persistence")]
+    pub(crate) snapshot_module: SnapshotModule
 }
 
 impl Context {
@@ -16,7 +20,10 @@ impl Context {
             supervisor,
             
             #[cfg(feature = "persistence")]
-            persistence: crate::persistence::Journal::new()
+            persistence: crate::persistence::Journal::new(),
+            
+            // #[cfg(feature = "persistence")]
+            // snapshot_module: 
         }
     }
 }

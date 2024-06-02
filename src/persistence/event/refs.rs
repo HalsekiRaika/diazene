@@ -5,9 +5,9 @@ use tokio::sync::oneshot;
 use crate::actor::{Actor, ActorRef, Applier, Context, Handler, Message};
 use crate::errors::ActorError;
 use crate::persistence::event::behavior::PersistenceBehavior;
-use crate::persistence::event::EventSourcedActor;
+use crate::persistence::event::EventSourced;
 
-impl<A: EventSourcedActor> PersistenceBehavior<A> for ActorRef<A> {
+impl<A: EventSourced> PersistenceBehavior<A> for ActorRef<A> {
     async fn ask<M: Message>(&self, msg: M) -> Result<Result<A::Accept, A::Rejection>, ActorError>
         where A: Handler<M>,
               A::Accept: Serialize + DeserializeOwned
@@ -56,7 +56,7 @@ pub(crate) struct Callback<A: Actor, M: Message>
 }
 
 #[async_trait::async_trait]
-impl<A: EventSourcedActor, M: Message> Applier<A> for Callback<A, M>
+impl<A: EventSourced, M: Message> Applier<A> for Callback<A, M>
     where
         A: Handler<M>,
         A::Accept: Serialize + DeserializeOwned
@@ -86,7 +86,7 @@ pub(crate) struct Void<A: Actor, M: Message>
 }
 
 #[async_trait::async_trait]
-impl<A: EventSourcedActor, M: Message> Applier<A> for Void<A, M>
+impl<A: EventSourced, M: Message> Applier<A> for Void<A, M>
     where
         A: Handler<M>,
         A::Accept: Serialize + DeserializeOwned
