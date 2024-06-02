@@ -1,15 +1,15 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::{Display, Formatter};
-use std::time::Duration;
 use serde::{Deserialize, Serialize};
+use tokio::time::Instant;
 use tracing_subscriber::Layer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+
+
 use uuid::{NoContext, Timestamp, Uuid};
 use diazene::actor::{Context, Handler, Message};
-use diazene::actor::behavior::RegularBehavior;
-use diazene::persistence::PersistentActor;
-use diazene::system::ActorSystem;
+use diazene::persistence::event::{Event, EventSourcedActor, Replay};
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Deserialize, Serialize)]
 pub struct PersonId(Uuid);
@@ -64,9 +64,29 @@ pub enum BookEvent {
     Archived,
 }
 
+impl Event for BookEvent {
+    const VERSION: &'static str = "0.1.0";
+    type Actor = Book;
+    fn apply(self, actor: &mut Self::Actor) {
+        match self {
+            BookEvent::Rental { id } => {
+                actor.rental.insert(id);
+            }
+            BookEvent::Returned { id } => {
+                actor.rental.remove(&id);
+            }
+            BookEvent::Archived => {}
+        }
+    }
+}
+
 impl Message for BookCommand {}
 
-impl PersistentActor for Book {}
+#[async_trait::async_trait]
+impl EventSourcedActor for Book {
+    async fn activate(&mut self, _ctx: &mut Context) {
+    }
+}
 
 impl Handler<BookCommand> for Book {
     type Accept = BookEvent;
@@ -113,8 +133,29 @@ fn create_book() -> (Uuid, Book) {
     (id, book)
 }
 
+async fn create_events() -> BTreeMap<i32, BookEvent> {
+    let mut events = BTreeMap::new();
+
+    let mut i = 0;
+    loop {
+        if i >= 100 {
+            events.insert(100, BookEvent::Archived);
+            break;
+        }
+
+        let id = PersonId::default();
+        
+        events.insert(i, BookEvent::Rental { id });
+        i += 1;
+        events.insert(i, BookEvent::Returned { id });
+        i += 1;
+    }
+    
+    events
+}
+
 #[tokio::test]
-async fn main() -> anyhow::Result<()> {
+async fn test_replay() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer()
                   .with_filter(tracing_subscriber::EnvFilter::new("test=trace,diazene=trace"))
@@ -122,19 +163,18 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
     
-    let system = ActorSystem::new();
+    let events = create_events().await;
+    events.iter().for_each(|(id, event)| tracing::debug!("id: {}, event: {}", id, serde_json::to_string(event).unwrap()));
     
-    let (id, book) = create_book();
+    let (_, mut book) = create_book();
     
-    let refs = system.spawn(id, book).await?;
+    let evs = events.into_values().collect::<Vec<_>>();
     
+    let now = Instant::now();
     
-    let ev = refs.ask(BookCommand::Rental { id: PersonId::default() }).await??;
-    let ser = serde_json::to_string(&ev)?;
-    tracing::debug!("{:?}", ser);
+    book.replay(evs).await;
     
+    let elapsed = now.elapsed().as_micros();
     
-    tokio::time::sleep(Duration::from_secs(5)).await;
-    
-    Ok(())
+    tracing::debug!(name: "replay", "(took time {}ms) book={:?}", elapsed, book);
 }

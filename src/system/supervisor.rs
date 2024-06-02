@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use anyid::AnyId;
 use tracing::Instrument;
 
-use crate::actor::{Actor, ActorRef, AnyRef, Applier, Context, Handler, Message, RegularBehavior};
+use crate::actor::{Actor, ActorRef, AnyRef, Applier, Context, Handler, Message, behavior::RegularBehavior};
 use crate::errors::ActorError;
 
 pub struct Supervisor {
@@ -30,9 +30,16 @@ impl Supervisor {
         
         tokio::spawn(async move {
             let mut ctx = ctx;
-            tracing::info!("supervisor activate.");
-            while let Some(payload) = rx.recv().await {
-                if let Err(e) = payload.apply(&mut self, &mut ctx).await {
+            
+            match Actor::activate(&mut self, &mut ctx).await {
+                Ok(_) => {
+                    while let Some(payload) = rx.recv().await {
+                        if let Err(e) = payload.apply(&mut self, &mut ctx).await {
+                            tracing::error!("{}", e);
+                        }
+                    }
+                }
+                Err(e) => {
                     tracing::error!("{}", e);
                 }
             }
@@ -75,7 +82,13 @@ impl Clone for SupervisorRef {
     }
 }
 
-impl Actor for Supervisor {}
+#[async_trait::async_trait]
+impl Actor for Supervisor {
+    async fn activate(&mut self, _ctx: &mut Context) -> Result<(), ActorError> {
+        tracing::info!("supervisor activate.");
+        Ok(())
+    }
+}
 
 impl<A: Actor> Handler<RunnableActor<A>> for Supervisor {
     type Accept = ActorRef<A>;
@@ -94,16 +107,25 @@ impl<A: Actor> Handler<RunnableActor<A>> for Supervisor {
 
         tokio::spawn(async move {
             let mut ctx = ctx;
-            tracing::info!("spawned.");
-            while let Some(payload) = rx.recv().await {
-                if let Err(e) = payload.apply(&mut msg.actor, &mut ctx).await {
-                    tracing::error!("{}", e);
-                }
+            
+            match msg.actor.activate(&mut ctx).await {
+                Ok(_) => {
+                    tracing::info!("spawned.");
+                    while let Some(payload) = rx.recv().await {
+                        if let Err(e) = payload.apply(&mut msg.actor, &mut ctx).await {
+                            tracing::error!("{}", e);
+                        }
 
-                if ctx.running_state().available_shutdown() {
-                    break;
+                        if ctx.running_state().available_shutdown() {
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(name: "activation", "{}", e);
                 }
             }
+            
             tracing::warn!("shutdown.");
         }.instrument(tracing::info_span!("actor", id = %msg.id)));
 

@@ -3,17 +3,22 @@ mod message;
 mod refs;
 mod context;
 mod state;
-mod behavior;
+pub mod behavior;
 
 pub use self::{
-    handler::*, 
-    message::*, 
-    refs::*, 
-    state::*, 
+    handler::*,
+    message::*,
+    refs::*,
+    state::*,
     context::*,
-    behavior::*,
 };
 
+use crate::errors::ActorError;
+
+#[async_trait::async_trait]
 pub trait Actor: 'static + Sync + Send {
-    
+    async fn activate(&mut self, _ctx: &mut Context) -> Result<(), ActorError> {
+        tracing::debug!(name: "actor", "activate");
+        Ok(())
+    }
 }

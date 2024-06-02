@@ -1,8 +1,12 @@
+use std::future::Future;
+use std::sync::Arc;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use crate::persistence::error::PersistError;
 
 pub struct Journal();
+
+
 
 impl Journal {
     pub fn new() -> Journal {
@@ -22,3 +26,4 @@ impl Journal {
         Ok(())
     }
 }
+

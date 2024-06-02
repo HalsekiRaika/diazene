@@ -4,8 +4,8 @@ use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 
-use crate::actor::{Actor, Context, ErrorFlattenBehavior, Handler, Message};
-use crate::actor::behavior::RegularBehavior;
+use crate::actor::{Actor, Context, Handler, Message};
+use crate::actor::behavior::{ErrorFlattenBehavior, RegularBehavior};
 use crate::errors::ActorError;
 
 pub struct ActorRef<A: Actor> {

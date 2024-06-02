@@ -1,3 +1,8 @@
+//! The `behavior` module is used to modify the behavior of [`ActorRef`](crate::actor::refs::ActorRef).
+//! 
+//! For example, with `persistence` and `event` features enabled, [`PersistenceBehavior`](crate::persistence::event::behavior::PersistenceBehavior) can be used. 
+//! Without going into details, this changes the functionality of the [`ActorRef`](crate::actor::refs::ActorRef) to persist the result of an ask/tell.
+
 use std::future::Future;
 use crate::actor::{Actor, Handler, Message};
 use crate::errors::ActorError;

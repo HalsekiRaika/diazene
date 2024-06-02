@@ -4,13 +4,13 @@ use tokio::sync::oneshot;
 
 use crate::actor::{Actor, ActorRef, Applier, Context, Handler, Message};
 use crate::errors::ActorError;
-use crate::persistence::behavior::PersistenceBehavior;
-use crate::persistence::PersistentActor;
+use crate::persistence::event::behavior::PersistenceBehavior;
+use crate::persistence::event::EventSourcedActor;
 
-impl<A: PersistentActor> PersistenceBehavior<A> for ActorRef<A> {
+impl<A: EventSourcedActor> PersistenceBehavior<A> for ActorRef<A> {
     async fn ask<M: Message>(&self, msg: M) -> Result<Result<A::Accept, A::Rejection>, ActorError>
         where A: Handler<M>,
-              A::Accept: Serialize + DeserializeOwned 
+              A::Accept: Serialize + DeserializeOwned
     {
         let (tx, rx) = oneshot::channel();
         let Ok(_) = self.ctx.sender.send(Box::new(Callback {
@@ -28,7 +28,7 @@ impl<A: PersistentActor> PersistenceBehavior<A> for ActorRef<A> {
 
     async fn tell<M: Message>(&self, msg: M) -> Result<Result<(), A::Rejection>, ActorError>
         where A: Handler<M>,
-              A::Accept: Serialize + DeserializeOwned 
+              A::Accept: Serialize + DeserializeOwned
     {
         let (tx, rx) = oneshot::channel();
         let Ok(_) = self.ctx.sender.send(Box::new(Void {
@@ -56,18 +56,18 @@ pub(crate) struct Callback<A: Actor, M: Message>
 }
 
 #[async_trait::async_trait]
-impl<A: PersistentActor, M: Message> Applier<A> for Callback<A, M>
+impl<A: EventSourcedActor, M: Message> Applier<A> for Callback<A, M>
     where
         A: Handler<M>,
         A::Accept: Serialize + DeserializeOwned
 {
     async fn apply(self: Box<Self>, actor: &mut A, ctx: &mut Context) -> Result<(), ActorError> {
         let msg = actor.handle(self.message, ctx).await;
-        
+
         if let Ok(msg) = &msg {
             ctx.persistence_mut().persist(msg).await?;
         }
-        
+
         Ok(self
             .oneshot
             .send(msg)
@@ -86,20 +86,20 @@ pub(crate) struct Void<A: Actor, M: Message>
 }
 
 #[async_trait::async_trait]
-impl<A: PersistentActor, M: Message> Applier<A> for Void<A, M>
+impl<A: EventSourcedActor, M: Message> Applier<A> for Void<A, M>
     where
-       A: Handler<M>,
-       A::Accept: Serialize + DeserializeOwned
+        A: Handler<M>,
+        A::Accept: Serialize + DeserializeOwned
 
 {
     async fn apply(self: Box<Self>, actor: &mut A, ctx: &mut Context) -> Result<(), ActorError> {
         match actor.handle(self.message, ctx).await {
-            Ok(ev) => { 
-                
+            Ok(ev) => {
+
                 ctx.persistence_mut()
                     .persist(&ev)
                     .await?;
-                
+
                 self.oneshot
                     .send(Ok(()))
                     .map_err(|_| ActorError::CallBackSend)

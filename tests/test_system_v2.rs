@@ -9,7 +9,8 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 use uuid::Uuid;
 
-use diazene::actor::{Actor, Context, Handler, Message, RegularBehavior, Terminate};
+use diazene::actor::{Actor, Context, Handler, Message, Terminate};
+use diazene::actor::behavior::RegularBehavior;
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct PersonId(Uuid);
