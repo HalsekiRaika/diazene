@@ -4,12 +4,23 @@ use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 
-use crate::actor::{Actor, Context, Handler, Message};
+use crate::actor::{Actor, Context, Handler, Message, Terminate};
 use crate::actor::behavior::{ErrorFlattenBehavior, RegularBehavior};
 use crate::errors::ActorError;
 
 pub struct ActorRef<A: Actor> {
     pub(crate) ctx: Arc<RefContext<A>>,
+}
+
+#[async_trait::async_trait]
+impl<A: Actor> DynRef for ActorRef<A> {
+    async fn shutdown(&self) -> Result<(), ActorError> {
+        ErrorFlattenBehavior::ask(self, Terminate).await
+    }
+    
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl<A: Actor> Clone for ActorRef<A> {
@@ -144,16 +155,33 @@ where
     }
 }
 
-pub(crate) struct AnyRef(Arc<dyn Any + Sync + Send>);
+#[async_trait::async_trait]
+pub trait DynRef: Any {
+    async fn shutdown(&self) -> Result<(), ActorError>;
+    fn as_any(&self) -> &dyn Any;
+}
+
+pub(crate) struct AnyRef(Arc<dyn DynRef + Sync + Send>);
 
 impl AnyRef {
     pub fn downcast<A: Actor>(self) -> Result<ActorRef<A>, ActorError> {
-        Ok(ActorRef {
-            ctx: self
-                .0
-                .downcast::<RefContext<A>>()
-                .map_err(|_| ActorError::DownCastFromAny)?,
-        })
+        self
+            .0
+            .as_any()
+            .downcast_ref::<ActorRef<A>>()
+            .cloned()
+            .ok_or_else(|| ActorError::DownCastFromAny)
+    }
+}
+
+#[async_trait::async_trait]
+impl DynRef for AnyRef {
+    async fn shutdown(&self) -> Result<(), ActorError> {
+        self.0.shutdown().await
+    }
+    
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -165,6 +193,6 @@ impl Clone for AnyRef {
 
 impl<A: Actor> From<ActorRef<A>> for AnyRef {
     fn from(value: ActorRef<A>) -> Self {
-        Self(value.ctx)
+        Self(Arc::new(value))
     }
 }
