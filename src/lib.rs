@@ -6,3 +6,6 @@ pub mod system;
 
 #[cfg(feature = "persistence")]
 pub mod persistence;
+
+#[cfg(feature = "re-export")]
+pub use async_trait::async_trait;
